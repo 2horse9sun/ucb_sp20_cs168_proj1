@@ -84,6 +84,13 @@ class DVRouter(DVRouterBase):
         :return: nothing.
         """
         # TODO: fill this in!
+        dst = packet.dst
+        if dst in self.table.keys():
+            latency = self.table[dst][2]
+            out_port = self.table[dst][1]
+            if latency < INFINITY:
+                self.send(packet, out_port)
+
 
     def send_routes(self, force=False, single_port=None):
         """
