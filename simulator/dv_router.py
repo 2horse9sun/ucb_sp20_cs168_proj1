@@ -104,6 +104,14 @@ class DVRouter(DVRouterBase):
         :return: nothing.
         """
         # TODO: fill this in!
+        if force:
+            for host, tableEntry in self.table.items():
+                latency = tableEntry[2]
+                routePacket = RoutePacket(host, latency)
+                if single_port is None:
+                    for out_port in self.ports.get_all_ports():
+                        self.send(routePacket, out_port)
+
 
     def expire_routes(self):
         """
