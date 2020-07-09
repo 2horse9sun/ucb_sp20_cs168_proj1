@@ -119,6 +119,14 @@ class DVRouter(DVRouterBase):
         accordingly.
         """
         # TODO: fill this in!
+        remove_hosts = []
+        for host, tableEntry in self.table.items():
+            expire_time = tableEntry[3]
+            if(api.current_time() > expire_time):
+                remove_hosts.append(host)
+        for remove_host in remove_hosts:
+            self.table.pop(remove_host)
+
 
     def handle_route_advertisement(self, route_dst, route_latency, port):
         """
