@@ -70,6 +70,8 @@ class DVRouter(DVRouterBase):
         assert port in self.ports.get_all_ports(), "Link should be up, but is not."
 
         # TODO: fill this in!
+        tableEntry = TableEntry(host, port, self.ports.get_latency(port), FOREVER)
+        self.table[host] = tableEntry
 
     def handle_data_packet(self, packet, in_port):
         """
