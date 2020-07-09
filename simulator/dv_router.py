@@ -130,6 +130,14 @@ class DVRouter(DVRouterBase):
         :return: nothing.
         """
         # TODO: fill this in!
+        new_latency = route_latency + self.ports.get_latency(port)
+        if route_dst not in self.table.keys():
+            self.table[route_dst] = TableEntry(route_dst, port, new_latency, api.current_time() + self.ROUTE_TTL)
+        else:
+            current_latency = self.table[route_dst][2]
+            current_port = self.table[route_dst][1]
+            if new_latency < current_latency or port == current_port:
+                self.table[route_dst] = TableEntry(route_dst, port, new_latency, api.current_time() + self.ROUTE_TTL)
 
     def handle_link_up(self, port, latency):
         """
