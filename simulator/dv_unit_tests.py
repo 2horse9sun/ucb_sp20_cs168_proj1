@@ -1351,7 +1351,7 @@ class TestTriggeredIncrementalUpdates(TestDVRouterBase):
     def test_new_route(self):
         """Triggered update when new route is shortest."""
         self._set_up_routes(sub_poison_reverse=False,
-                            sub_poison_expired=False, sub_poison_on_link_down=False, sub_split_horizon=True),
+                            sub_poison_expired=False, sub_poison_on_link_down=False, sub_split_horizon=True)
         h1 = self.h1
 
         with self._patch_send_routes(all_ports={1, 2, 3, 10}) as ads:

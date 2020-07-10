@@ -53,6 +53,8 @@ class DVRouter(DVRouterBase):
         self.table = Table()
         self.table.owner = self
 
+        self.history = {}
+
 
     def add_static_route(self, host, port):
         """
@@ -104,28 +106,81 @@ class DVRouter(DVRouterBase):
         :return: nothing.
         """
         # TODO: fill this in!
-        if force:
-            for host, tableEntry in self.table.items():
-                port = tableEntry[1]
-                if single_port is None:
-                    for out_port in self.ports.get_all_ports():
-                        if self.SPLIT_HORIZON:
-                            if out_port != port:
-                                latency = tableEntry[2]
-                                routePacket = RoutePacket(host, latency)
-                                self.send(routePacket, out_port)
-                        elif self.POISON_REVERSE:
-                            if out_port != port:
-                                latency = tableEntry[2]
-                            else:
-                                latency = INFINITY
-                            routePacket = RoutePacket(host, latency)
-                            self.send(routePacket, out_port)
-                        else:
+        for host, tableEntry in self.table.items():
+            port = tableEntry[1]
+            if single_port is None:
+                for out_port in self.ports.get_all_ports():
+                    if self.SPLIT_HORIZON:
+                        if out_port != port:
                             latency = tableEntry[2]
                             routePacket = RoutePacket(host, latency)
+                            if not force:
+                                if (out_port,host) not in self.history.keys() or self.history[(out_port,host)].latency != routePacket.latency:
+                                    self.send(routePacket, out_port)
+                                    self.history[(out_port,host)] = routePacket
+                            else:
+                                self.send(routePacket, out_port)
+                                self.history[(out_port, host)] = routePacket
+                    elif self.POISON_REVERSE:
+                        if out_port != port:
+                            latency = tableEntry[2]
+                        else:
+                            latency = INFINITY
+                        routePacket = RoutePacket(host, latency)
+                        if not force:
+                            if (out_port, host) not in self.history.keys() or self.history[(out_port,host)].latency != routePacket.latency:
+                                self.send(routePacket, out_port)
+                                self.history[(out_port, host)] = routePacket
+                        else:
                             self.send(routePacket, out_port)
+                            self.history[(out_port, host)] = routePacket
+                    else:
+                        latency = tableEntry[2]
+                        routePacket = RoutePacket(host, latency)
+                        if not force:
+                            if (out_port, host) not in self.history.keys() or self.history[(out_port,host)].latency != routePacket.latency:
+                                self.send(routePacket, out_port)
+                                self.history[(out_port, host)] = routePacket
+                        else:
+                            self.send(routePacket, out_port)
+                            self.history[(out_port, host)] = routePacket
 
+            else:
+                out_port = single_port
+                if self.SPLIT_HORIZON:
+                    if out_port != port:
+                        latency = tableEntry[2]
+                        routePacket = RoutePacket(host, latency)
+                        if not force:
+                            if (out_port,host) not in self.history.keys() or self.history[(out_port,host)].latency != routePacket.latency:
+                                self.send(routePacket, out_port)
+                                self.history[(out_port,host)] = routePacket
+                        else:
+                            self.send(routePacket, out_port)
+                            self.history[(out_port, host)] = routePacket
+                elif self.POISON_REVERSE:
+                    if out_port != port:
+                        latency = tableEntry[2]
+                    else:
+                        latency = INFINITY
+                    routePacket = RoutePacket(host, latency)
+                    if not force:
+                        if (out_port, host) not in self.history.keys() or self.history[(out_port,host)].latency != routePacket.latency:
+                            self.send(routePacket, out_port)
+                            self.history[(out_port, host)] = routePacket
+                    else:
+                        self.send(routePacket, out_port)
+                        self.history[(out_port, host)] = routePacket
+                else:
+                    latency = tableEntry[2]
+                    routePacket = RoutePacket(host, latency)
+                    if not force:
+                        if (out_port, host) not in self.history.keys() or self.history[(out_port,host)].latency != routePacket.latency:
+                            self.send(routePacket, out_port)
+                            self.history[(out_port, host)] = routePacket
+                    else:
+                        self.send(routePacket, out_port)
+                        self.history[(out_port, host)] = routePacket
 
 
     def expire_routes(self):
@@ -169,14 +224,17 @@ class DVRouter(DVRouterBase):
         if route_dst not in self.table.keys():
             if not is_poisoned:
                 self.table[route_dst] = TableEntry(route_dst, port, new_latency, api.current_time() + self.ROUTE_TTL)
+                self.send_routes()
         else:
             current_latency = self.table[route_dst][2]
             current_port = self.table[route_dst][1]
             if new_latency < current_latency or port == current_port:
                 if is_poisoned:
                     self.table[route_dst] = TableEntry(route_dst, port, new_latency,api.current_time())
+                    self.send_routes()
                 else:
                     self.table[route_dst] = TableEntry(route_dst, port, new_latency, api.current_time() + self.ROUTE_TTL)
+                    self.send_routes()
 
     def handle_link_up(self, port, latency):
         """
@@ -189,6 +247,8 @@ class DVRouter(DVRouterBase):
         self.ports.add_port(port, latency)
 
         # TODO: fill in the rest!
+        if self.SEND_ON_LINK_UP:
+            self.send_routes(False, port)
 
     def handle_link_down(self, port):
         """
@@ -200,5 +260,17 @@ class DVRouter(DVRouterBase):
         self.ports.remove_port(port)
 
         # TODO: fill this in!
+        if(self.POISON_ON_LINK_DOWN):
+            remove_hosts = []
+            for host, tableEntry in self.table.items():
+                if port == tableEntry[1]:
+                    remove_hosts.append(host)
+            for remove_host in remove_hosts:
+                port = self.table[remove_host][1]
+                self.table.pop(remove_host)
+                tableEntry = TableEntry(remove_host, port, INFINITY, FOREVER)
+                self.table[remove_host] = tableEntry
+
+        self.send_routes()
 
     # Feel free to add any helper methods!
