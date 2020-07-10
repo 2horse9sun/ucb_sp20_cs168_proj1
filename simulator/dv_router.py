@@ -139,8 +139,16 @@ class DVRouter(DVRouterBase):
             expire_time = tableEntry[3]
             if(api.current_time() > expire_time):
                 remove_hosts.append(host)
-        for remove_host in remove_hosts:
-            self.table.pop(remove_host)
+        if self.POISON_EXPIRED:
+            for remove_host in remove_hosts:
+                port = self.table[remove_host][1]
+                self.table.pop(remove_host)
+                tableEntry = TableEntry(remove_host, port, INFINITY, FOREVER)
+                self.table[remove_host] = tableEntry
+        else:
+            for remove_host in remove_hosts:
+                self.table.pop(remove_host)
+
 
 
     def handle_route_advertisement(self, route_dst, route_latency, port):
