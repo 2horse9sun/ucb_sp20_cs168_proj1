@@ -107,12 +107,25 @@ class DVRouter(DVRouterBase):
         if force:
             for host, tableEntry in self.table.items():
                 port = tableEntry[1]
-                latency = tableEntry[2]
-                routePacket = RoutePacket(host, latency)
                 if single_port is None:
                     for out_port in self.ports.get_all_ports():
-                        if not self.SPLIT_HORIZON or self.SPLIT_HORIZON and out_port!=port:
+                        if self.SPLIT_HORIZON:
+                            if out_port != port:
+                                latency = tableEntry[2]
+                                routePacket = RoutePacket(host, latency)
+                                self.send(routePacket, out_port)
+                        elif self.POISON_REVERSE:
+                            if out_port != port:
+                                latency = tableEntry[2]
+                            else:
+                                latency = INFINITY
+                            routePacket = RoutePacket(host, latency)
                             self.send(routePacket, out_port)
+                        else:
+                            latency = tableEntry[2]
+                            routePacket = RoutePacket(host, latency)
+                            self.send(routePacket, out_port)
+
 
 
     def expire_routes(self):
